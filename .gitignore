@@ -1,0 +1,19 @@
+# .gitignore
+
+# Ignore environment configuration
+.env
+
+# Ignore virtual environment
+env/
+
+# Ignore compiled Python files
+__pycache__/
+
+# Ignore instance directory (contains configuration files with sensitive data)
+instance/
+
+# Ignore migration scripts
+migrations/
+
+# Ignore IDE-specific files
+.vscode/
