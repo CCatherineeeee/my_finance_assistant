@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "plaid": "^18.2.0"
+  }
+}

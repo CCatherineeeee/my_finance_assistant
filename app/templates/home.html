@@ -6,12 +6,117 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home</title>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+
+    
 </head>
 
 <body>
     <h1>Login Authentication System in Flask.</h1>
     <a href="{{ url_for('login') }}">Login Page</a><br>
     <a href="{{ url_for('register') }}">Register Page</a><br>
+    <button
+                type="button"
+                class="btn btn-primary btn-md mt-1"
+                id="initializeLink"
+              >
+                Step 1: Initialize link
+    </button>
+    <button
+                type="button"
+                class="btn btn-primary btn-md mt-1"
+                id="startLink"
+              >
+                Step 2: Start link
+    </button>
+
+    <button id="clickButton">Click me</button>
+
+    <script>
+        function handleClick() {
+            console.log("Button clicked!");
+        }
+
+        document.getElementById("clickButton").addEventListener("click", handleClick);
+    </script>
+
+    <script>
+      let linkTokenData;
+      let publicTokenToExchange;
+
+      async function initializeLink() {
+        try {
+          console.log("triggered initialize link function")
+          const response = await fetch("http://127.0.0.1:5000/server/create_link_token");
+    
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+    
+          linkTokenData = await response.json();
+          // Now you can use linkTokenData as needed
+          console.log(linkTokenData);
+        } catch (error) {
+          // Handle errors
+          console.error('Error during fetch operation:', error);
+        }
+      }
+
+      document.getElementById("initializeLink").addEventListener("click", initializeLink);
+    
+
+    
+      async function startLink() {
+        console.log("triggered start link function")
+        console.log(linkTokenData)
+        if (linkTokenData === undefined) {
+          return;
+        }
+        const handler = Plaid.create({
+          token: linkTokenData.link_token,
+          onSuccess: async (publicToken, metadata) => {
+            console.log(`ONSUCCESS: Metadata ${JSON.stringify(metadata)}`);
+            showOutput(
+              `I have a public token: ${publicToken} I should exchange this`
+            );
+            publicTokenToExchange = publicToken;
+            document.querySelector("#exchangeToken").removeAttribute("disabled");
+          },
+          onExit: (err, metadata) => {
+            console.log(
+              `Exited early. Error: ${JSON.stringify(err)} Metadata: ${JSON.stringify(
+                metadata
+              )}`
+            );
+            showOutput(`Link existed early with status ${metadata.status}`)
+          },
+          onEvent: (eventName, metadata) => {
+            console.log(`Event ${eventName}, Metadata: ${JSON.stringify(metadata)}`);
+          },
+        });
+        handler.open();
+      };
+
+      document.getElementById("startLink").addEventListener("click", startLink);
+
+      const options = {
+        method: 'POST',
+        headers: {
+        'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(update),
+        };
+
+
+
+  </script>
+
+    {% for file in js_files %}
+  <script src = {{file}}>  </script>
+    {% endfor %}
+
+
+
 
 </body>
 

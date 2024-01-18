@@ -1,9 +1,22 @@
-from flask import Flask, render_template, url_for, redirect
+import os
+from os import listdir
+from dotenv import load_dotenv
+import plaid
+# from plaid import Client
+from plaid.api import plaid_api
+from plaid.model.country_code import CountryCode
+from plaid.model.products import Products
+from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+from plaid.model.item_get_request import ItemGetRequest
+from plaid.model.transactions_get_request import TransactionsGetRequest
+from flask import Flask, render_template, url_for, redirect, jsonify
 from flask_migrate import Migrate
 from flask_login import login_user,LoginManager,current_user,logout_user,login_required
 from app import app, db, bcrypt
 from app.forms import LoginForm, RegisterForm
 from app.models import User
+from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 
 # app = Flask(__name__)
 # bcrypt = Bcrypt(app)
@@ -34,12 +47,32 @@ from app.models import User
 #     bcrypt.init_app(app)
     
 #     return app
+
+# refer: https://medium.com/swlh/test-story-635a6c1cfdfd
+def compile_javascript():
+    # Defining the path to the folder where the JS files are saved
+    path = 'app/static/js'
+    # Getting all the files from that folder
+    files = [f for f in listdir(path) if os.path.isfile(os.path.join(path, f))]
+    # Setting an iterator
+    i = 0
+    # Looping through the files in the first folder
+    for file in files:
+        # Building a file name
+        file_name = "js/" + file
+        # Creating a URL and saving it to a list
+        all_js_files = []
+        all_js_files.append(url_for('static', filename = file_name)) 
+        # Updating list index before moving on to next file
+        return(all_js_files)
     
     
 
 @app.route('/')
 def home():
-    return render_template('home.html')
+    all_js_files = compile_javascript()
+    print (all_js_files)
+    return render_template('home.html', js_files = all_js_files)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -79,3 +112,53 @@ def dashboard():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+
+######### Flask Endpoints
+
+# create plaid client
+load_dotenv()
+
+client_id = os.getenv('client_id')
+secret = os.getenv('secret')
+PLAID_ENV = os.getenv('PLAID_ENV', 'sandbox') ## why specifying sandbox??
+
+config = plaid.Configuration(
+    host = plaid.Environment.Sandbox,
+    api_key={
+        'clientId': client_id, 
+        'secret': secret, 
+        }
+)
+api_client = plaid.ApiClient(config)
+client = plaid_api.PlaidApi(api_client)
+# client = Client(client_id=client_id, secret=secret, environment='sandbox')
+
+@app.route('/server/create_link_token', methods=['GET', 'POST'])
+def generate_link_token():
+    # Account filtering isn't required here, but sometimes 
+    # it's helpful to see an example. 
+    print("triggered server endpoint")
+    request = LinkTokenCreateRequest( # not sure of these two, aka if i should call this way or import something
+        user= LinkTokenCreateRequestUser(
+            client_user_id= "1", # todo: change this user id to primary key in database
+        ),
+        client_name='My Finance Assistant',
+        products=[Products("auth"), Products("transactions")],
+        country_codes=[CountryCode("US")],
+        language='en',
+        webhook='https://sample-web-hook.com',
+    )
+    # create link token
+    response = client.link_token_create(request)
+    #link_token = response['link_token']
+    print (response)
+    return jsonify(response.to_dict())
+
+# @app.route('/server/swap_public_token', methods=['GET', 'POST'])
+# def swap_public_token():
+#     print (public_token)
+#     request = ItemPublicTokenExchangeRequest(public_token=public_token)
+#     response = client.item_public_token_exchange(request)
+#     access_token = response['access_token']
+#     item_id = response['item_id']
