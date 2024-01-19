@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home</title>
     <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 
     
 </head>
@@ -29,21 +30,21 @@
               >
                 Step 2: Start link
     </button>
+    <button
+                type="button"
+                class="btn btn-primary btn-md mt-1"
+                id="exchangeToken"
+              >
+                Step 3: Exchange Token
+    </button>
 
-    <button id="clickButton">Click me</button>
-
-    <script>
-        function handleClick() {
-            console.log("Button clicked!");
-        }
-
-        document.getElementById("clickButton").addEventListener("click", handleClick);
-    </script>
+    <button id="clickButton">Click me to send public token to backend</button>
 
     <script>
       let linkTokenData;
       let publicTokenToExchange;
 
+      // step 1: create link token
       async function initializeLink() {
         try {
           console.log("triggered initialize link function")
@@ -55,7 +56,7 @@
     
           linkTokenData = await response.json();
           // Now you can use linkTokenData as needed
-          console.log(linkTokenData);
+          console.log(`I have a link token: ${linkTokenData} I can use it to open link now`);
         } catch (error) {
           // Handle errors
           console.error('Error during fetch operation:', error);
@@ -65,7 +66,7 @@
       document.getElementById("initializeLink").addEventListener("click", initializeLink);
     
 
-    
+    // step 2: open link
       async function startLink() {
         console.log("triggered start link function")
         console.log(linkTokenData)
@@ -76,11 +77,11 @@
           token: linkTokenData.link_token,
           onSuccess: async (publicToken, metadata) => {
             console.log(`ONSUCCESS: Metadata ${JSON.stringify(metadata)}`);
-            showOutput(
-              `I have a public token: ${publicToken} I should exchange this`
+            console.log(
+              `I have a public token: ${publicToken} I can exchange this`
             );
             publicTokenToExchange = publicToken;
-            document.querySelector("#exchangeToken").removeAttribute("disabled");
+            // sendData(publicTokenToExchange)
           },
           onExit: (err, metadata) => {
             console.log(
@@ -88,7 +89,7 @@
                 metadata
               )}`
             );
-            showOutput(`Link existed early with status ${metadata.status}`)
+            console.log(`Link existed early with status ${metadata.status}`)
           },
           onEvent: (eventName, metadata) => {
             console.log(`Event ${eventName}, Metadata: ${JSON.stringify(metadata)}`);
@@ -99,13 +100,25 @@
 
       document.getElementById("startLink").addEventListener("click", startLink);
 
-      const options = {
-        method: 'POST',
-        headers: {
-        'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(update),
-        };
+      const testPublicToken = "public-sandbox-72655bea-fec2-4127-ae8b-9219d08d366f";
+      function sendData() { 
+        console.log(`received ${testPublicToken} in sendData helper function, passing to backend`)
+        $.ajax({
+          type: "POST",
+          url: "/server/swap_public_token",
+          data: JSON.stringify(({ 'publicToken': testPublicToken })),
+          contentType: "application/json",
+          dataType: 'json',
+          success: function(result) {
+            console.log("Result:");
+            console.log(result);
+          } 
+        });
+        //$.post( "/server/swap_public_token", {
+        //  publicToken: publicTokenToExchange 
+      //});
+      } 
+      document.getElementById("exchangeToken").addEventListener("click", sendData);
 
 
 

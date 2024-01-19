@@ -1,8 +1,15 @@
 import os
 from os import listdir
 from dotenv import load_dotenv
+from flask import Flask, render_template, url_for, redirect, jsonify, request
+from flask import request
+from flask_migrate import Migrate
+from flask_login import login_user,LoginManager,current_user,logout_user,login_required
+from app import app, db, bcrypt
+from app.forms import LoginForm, RegisterForm
+from app.models import User
+
 import plaid
-# from plaid import Client
 from plaid.api import plaid_api
 from plaid.model.country_code import CountryCode
 from plaid.model.products import Products
@@ -10,12 +17,6 @@ from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.item_get_request import ItemGetRequest
 from plaid.model.transactions_get_request import TransactionsGetRequest
-from flask import Flask, render_template, url_for, redirect, jsonify
-from flask_migrate import Migrate
-from flask_login import login_user,LoginManager,current_user,logout_user,login_required
-from app import app, db, bcrypt
-from app.forms import LoginForm, RegisterForm
-from app.models import User
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 
 # app = Flask(__name__)
@@ -138,8 +139,8 @@ client = plaid_api.PlaidApi(api_client)
 def generate_link_token():
     # Account filtering isn't required here, but sometimes 
     # it's helpful to see an example. 
-    print("triggered server endpoint")
-    request = LinkTokenCreateRequest( # not sure of these two, aka if i should call this way or import something
+    print("triggered endpoint: generate link token")
+    link_request = LinkTokenCreateRequest( # not sure of these two, aka if i should call this way or import something
         user= LinkTokenCreateRequestUser(
             client_user_id= "1", # todo: change this user id to primary key in database
         ),
@@ -150,15 +151,27 @@ def generate_link_token():
         webhook='https://sample-web-hook.com',
     )
     # create link token
-    response = client.link_token_create(request)
+    link_response = client.link_token_create(link_request)
     #link_token = response['link_token']
-    print (response)
-    return jsonify(response.to_dict())
+    print ("link token:", link_response)
+    return jsonify(link_response.to_dict())
 
-# @app.route('/server/swap_public_token', methods=['GET', 'POST'])
-# def swap_public_token():
-#     print (public_token)
-#     request = ItemPublicTokenExchangeRequest(public_token=public_token)
-#     response = client.item_public_token_exchange(request)
-#     access_token = response['access_token']
-#     item_id = response['item_id']
+
+@app.route('/server/swap_public_token', methods=['POST'])
+def swap_public_token():
+    print ("triggered endpoint: swap public token")
+    # print (request)
+    if request.method == 'POST':
+        data = request.get_json()
+        public_token = data['publicToken']
+        print ("backend received public token: ", public_token, "Now run exchangeRequest")
+        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
+        response = client.item_public_token_exchange(exchange_request)
+        access_token = response['access_token']
+        item_id = response['item_id']
+        print (access_token, item_id)
+        return redirect
+    
+    
+    # user_good
+    # pass_good
