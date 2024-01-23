@@ -5,75 +5,27 @@ from flask import Flask, render_template, url_for, redirect, jsonify, request
 from flask import request
 from flask_migrate import Migrate
 from flask_login import login_user,LoginManager,current_user,logout_user,login_required
-from app import app, db, bcrypt
+from app import app, db, bcrypt, login_manager
 from app.forms import LoginForm, RegisterForm
-from app.models import User
+from app.models import User, BankAccount, Transaction
+from datetime import date
 
 import plaid
 from plaid.api import plaid_api
 from plaid.model.country_code import CountryCode
 from plaid.model.products import Products
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.item_get_request import ItemGetRequest
 from plaid.model.transactions_get_request import TransactionsGetRequest
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest  
 
-# app = Flask(__name__)
-# bcrypt = Bcrypt(app)
-# app.config['SQLALCHEMY_DATABASE_URI'] = '' # connect server to database
-# app.config['SECRET_KEY'] = 'thisisasecretekey'
-# db = SQLAlchemy(app)
-
-    
-# login_manager = LoginManager()
-# login_manager.session_protection = "strong"
-# login_manager.login_view = "login"
-# login_manager.login_message_category = "info"
-# db = SQLAlchemy()
-# migrate = Migrate()
-# bcrypt = Bcrypt()
-    
-# def create_app():
-#     app = Flask(__name__)
-
-#     app.secret_key = 'secret-key'
-#     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///database.db"
-#     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
-#     app.config['SECRET_KEY'] = 'thisisasecretekey'
-
-#     login_manager.init_app(app)
-#     db.init_app(app)
-#     migrate.init_app(app, db)
-#     bcrypt.init_app(app)
-    
-#     return app
-
-# refer: https://medium.com/swlh/test-story-635a6c1cfdfd
-def compile_javascript():
-    # Defining the path to the folder where the JS files are saved
-    path = 'app/static/js'
-    # Getting all the files from that folder
-    files = [f for f in listdir(path) if os.path.isfile(os.path.join(path, f))]
-    # Setting an iterator
-    i = 0
-    # Looping through the files in the first folder
-    for file in files:
-        # Building a file name
-        file_name = "js/" + file
-        # Creating a URL and saving it to a list
-        all_js_files = []
-        all_js_files.append(url_for('static', filename = file_name)) 
-        # Updating list index before moving on to next file
-        return(all_js_files)
-    
     
 
 @app.route('/')
 def home():
-    all_js_files = compile_javascript()
-    print (all_js_files)
-    return render_template('home.html', js_files = all_js_files)
+    return render_template('home.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -105,17 +57,68 @@ def register():
 @app.route('/dashboard', methods=['GET', 'POST'])
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    access_tokens = get_access_token_of_user()
+    print ("current access token/s: ", access_tokens)
+    balance =  0
+    balance += get_account_balance(access_tokens[0])
+        
+    # get transactionfrom all accounts
+    transactions = display_transactions()
+    if len(transactions) == 0:
+        return render_template('dashboard.html', balance = balance)
+    return render_template('dashboard.html', balance = balance, transactions = transactions)
+
+@login_required
+def get_access_token_of_user():
+    bank_accounts = BankAccount.query.filter_by(user_id=current_user.username).all()
+    access_tokens = [account.access_token for account in bank_accounts] # in this way, even we only have one accesstoken, it can still well handel 
+    return access_tokens
+        
+def get_account_balance(access_token):
+    # print ("get access token: ", access_token)
+    request = AccountsBalanceGetRequest(access_token=access_token)
+    response = client.accounts_balance_get(request)
+    accounts = response['accounts']
+    balance = 0
+    for account in accounts:
+        balance += account["balances"]["current"]
+    return balance
 
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/account_management', methods=['GET', 'POST'])
+@login_required
+def account_management():
+    print ("welcome to account management page, ", current_user.username)
+    bank_accounts = BankAccount.query.filter_by(user_id=current_user.username).all()
+    return render_template('account_management.html', bank_accounts=bank_accounts)
+
+def get_accounts_from_accesstoken(access_token):
+    request = AccountsBalanceGetRequest(access_token=access_token)
+    response = client.accounts_balance_get(request)
+    accounts = response['accounts']
+    balance = 0
+    print (accounts)
+    for account in accounts:
+        balance += get_account_balance(account)
+    return balance
+
+    
+def get_account_info(account): # helper function for BankAccount Table...?
+    account_subtype = account["subtype"]
+    account_type = account["type"]
+    account_name = account["name"]
+    account_official_name = account["official_name"]
+    
+    
+    
+
+@app.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
 
-
-######### Flask Endpoints
+########################################## Flask Endpoints  ########################################## 
 
 # create plaid client
 load_dotenv()
@@ -133,7 +136,6 @@ config = plaid.Configuration(
 )
 api_client = plaid.ApiClient(config)
 client = plaid_api.PlaidApi(api_client)
-# client = Client(client_id=client_id, secret=secret, environment='sandbox')
 
 @app.route('/server/create_link_token', methods=['GET', 'POST'])
 def generate_link_token():
@@ -152,7 +154,6 @@ def generate_link_token():
     )
     # create link token
     link_response = client.link_token_create(link_request)
-    #link_token = response['link_token']
     print ("link token:", link_response)
     return jsonify(link_response.to_dict())
 
@@ -160,18 +161,56 @@ def generate_link_token():
 @app.route('/server/swap_public_token', methods=['POST'])
 def swap_public_token():
     print ("triggered endpoint: swap public token")
-    # print (request)
     if request.method == 'POST':
         data = request.get_json()
         public_token = data['publicToken']
         print ("backend received public token: ", public_token, "Now run exchangeRequest")
         exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
         response = client.item_public_token_exchange(exchange_request)
-        access_token = response['access_token']
-        item_id = response['item_id']
-        print (access_token, item_id)
-        return redirect
+        store_access_token(response)
+        return redirect(url_for('dashboard'))
+    
+@login_required
+def store_access_token(exchange_response):
+    print ("storing access token to database")
+    access_token = exchange_response['access_token']
+    item_id = exchange_response['item_id']
+    print ("storing access token for current user: ", current_user.username)
+    new_bank_account = BankAccount(user_id=current_user.username, access_token=access_token, item_id = item_id)
+    db.session.add(new_bank_account)
+    db.session.commit()
     
     
-    # user_good
-    # pass_good
+    
+@app.route('/server/add_transaction_history', methods=['GET'])
+def get_transaction_history():
+    print ("now adding transaction to database")
+    accessTokens = get_access_token_of_user()
+    accessToken = accessTokens[0]
+    print ("in function, accesstoken: ", accessToken)
+    request = TransactionsGetRequest(
+            access_token=accessToken,
+            start_date=date(1900, 1, 1),
+            end_date=date(2025, 12, 25)
+    )
+    response = client.transactions_get(request)
+    raw_transactions = response['transactions']
+    
+    for transaction in raw_transactions:
+        temp = {}
+        activity = transaction["counterparties"]
+        temp["activity"] = activity
+        category = ""
+        for j in transaction["category"]:
+            category += j
+        the_date = str(transaction["date"])
+        amount = float(transaction["amount"])
+        pending = str(transaction["pending"])
+        new_row = Transaction(category=category, amount = amount, date = the_date, pending = pending)
+        db.session.add(new_row)
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+    
+def display_transactions():
+    data = Transaction.query.all()
+    return data

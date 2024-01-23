@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Account Management Page</title>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+
+    
+</head>
+
+<body>
+    <h1>Bank Account Management Page.</h1>
+    <h3>Add new Account </h3>
+    <button
+                type="button"
+                class="btn btn-primary btn-md mt-1"
+                id="initializeLink"
+              >
+                Step 1: Initialize link
+    </button>
+    <button
+                type="button"
+                class="btn btn-primary btn-md mt-1"
+                id="startLink"
+              >
+                Step 2: Start link
+    </button>
+    <button
+                type="button"
+                class="btn btn-primary btn-md mt-1"
+                id="exchangeToken"
+              >
+                Step 3: Exchange Token
+    </button>
+
+    <script>
+      let linkTokenData;
+      let publicTokenToExchange;
+
+      // step 1: create link token
+      async function initializeLink() {
+        try {
+          console.log("triggered initialize link function")
+          const response = await fetch("http://127.0.0.1:5000/server/create_link_token");
+    
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+    
+          linkTokenData = await response.json();
+          // Now you can use linkTokenData as needed
+          console.log(`I have a link token: ${linkTokenData} I can use it to open link now`);
+        } catch (error) {
+          // Handle errors
+          console.error('Error during fetch operation:', error);
+        }
+      }
+
+      document.getElementById("initializeLink").addEventListener("click", initializeLink);
+    
+
+      // step 2: open link
+      async function startLink() {
+        console.log("triggered start link function")
+        console.log(linkTokenData)
+        if (linkTokenData === undefined) {
+          return;
+        }
+        const handler = Plaid.create({
+          token: linkTokenData.link_token,
+          onSuccess: async (publicToken, metadata) => {
+            console.log(`ONSUCCESS: Metadata ${JSON.stringify(metadata)}`);
+            console.log(
+              `I have a public token: ${publicToken} I can exchange this`
+            );
+            publicTokenToExchange = publicToken;
+            console.log(`is publicTokenToExchange is same as above: ${publicTokenToExchange}? `);
+            // sendData(publicTokenToExchange)
+          },
+          onExit: (err, metadata) => {
+            console.log(
+              `Exited early. Error: ${JSON.stringify(err)} Metadata: ${JSON.stringify(
+                metadata
+              )}`
+            );
+            console.log(`Link existed early with status ${metadata.status}`)
+          },
+          onEvent: (eventName, metadata) => {
+            console.log(`Event ${eventName}, Metadata: ${JSON.stringify(metadata)}`);
+          },
+        });
+        handler.open();
+      };
+
+      document.getElementById("startLink").addEventListener("click", startLink);
+
+      // const testPublicToken = "public-sandbox-72655bea-fec2-4127-ae8b-9219d08d366f";
+      function sendData() { 
+        console.log(`received ${publicTokenToExchange} in sendData helper function, passing to backend`)
+        $.ajax({
+          type: "POST",
+          url: "/server/swap_public_token",
+          data: JSON.stringify(({ 'publicToken': publicTokenToExchange })),
+          contentType: "application/json",
+          dataType: 'json',
+          success: function(result) {
+            console.log("Result:");
+            console.log(result);
+          } 
+        });
+        //$.post( "/server/swap_public_token", {
+        //  publicToken: publicTokenToExchange 
+      //});
+      } 
+      document.getElementById("exchangeToken").addEventListener("click", sendData);
+
+
+
+    </script>
+
+
+
+    {% for file in js_files %}
+  <script src = {{file}}>  </script>
+    {% endfor %}
+
+    <h3>Your Bank Accounts</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>User ID</th>
+                <th>Access Token</th>
+                <th>Item ID</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for account in bank_accounts %}
+                <tr>
+                    <td>{{ account.id }}</td>
+                    <td>{{ account.user_id }}</td>
+                    <td>{{ account.access_token }}</td>
+                    <td>{{ account.item_id }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{url_for('dashboard')}}">Back to Dashboard</a>
+
+</body>
+
+</html>

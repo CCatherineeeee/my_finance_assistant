@@ -10,7 +10,34 @@
 
 <body>
     <h1>Hello you are logged in.</h1>
+    <a href="{{url_for('account_management')}}">Account Management</a>
     <a href="{{url_for('logout')}}">Press here to logout</a>
+    <h3> Your Total Account Balance is: <p>{{ balance }}</p>
+    <a href="/server/add_transaction_history"> refresh your transactions</a>
+
+        <h3>Your Transactions</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Pending</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in transactions %}
+                    <tr>
+                        <td>{{ transaction.id }}</td>
+                        <td>{{ transaction.category }}</td>
+                        <td>{{ transaction.amount }}</td>
+                        <td>{{ transaction.date }}</td>
+                        <td>{{ transaction.pending }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
 </body>
 
 </html>
