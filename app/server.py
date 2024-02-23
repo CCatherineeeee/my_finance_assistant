@@ -9,6 +9,7 @@ from app import app, db, bcrypt, login_manager
 from app.forms import LoginForm, RegisterForm
 from app.models import User, BankAccount, Transaction
 from datetime import date
+from sqlalchemy import func
 
 import plaid
 from plaid.api import plaid_api
@@ -66,7 +67,10 @@ def dashboard():
     transactions = display_transactions()
     if len(transactions) == 0:
         return render_template('dashboard.html', balance = balance)
-    return render_template('dashboard.html', balance = balance, transactions = transactions)
+    
+    # category spendings
+    category_spendings = show_transaction_based_on_category()
+    return render_template('dashboard.html', balance = balance, transactions = transactions, category_spendings=category_spendings)
 
 @login_required
 def get_access_token_of_user():
@@ -194,19 +198,24 @@ def get_transaction_history():
             end_date=date(2025, 12, 25)
     )
     response = client.transactions_get(request)
-    raw_transactions = response['transactions']
     
+    account_name_dict = {}
+    for account in response['accounts']:
+        account_id = account["account_id"]
+        account_official_name = account["official_name"]
+        account_name_dict[account_id] = account_official_name
+        
+    raw_transactions = response['transactions']
     for transaction in raw_transactions:
-        temp = {}
-        activity = transaction["counterparties"]
-        temp["activity"] = activity
-        category = ""
-        for j in transaction["category"]:
-            category += j
+        account_id = transaction['account_id']
+        category = transaction["personal_finance_category"]["primary"]
+        category_icon = transaction["personal_finance_category_icon_url"]
+        merchant_name = transaction["merchant_name"]
+        logo_url = transaction["logo_url"]
         the_date = str(transaction["date"])
         amount = float(transaction["amount"])
-        pending = str(transaction["pending"])
-        new_row = Transaction(category=category, amount = amount, date = the_date, pending = pending)
+        account_official_name = account_name_dict[account_id]
+        new_row = Transaction(account_id = account_id, category=category, category_icon = category_icon, merchant_name =merchant_name, logo_url = logo_url, amount = amount, date = the_date, account_official_name = account_official_name)
         db.session.add(new_row)
     db.session.commit()
     return redirect(url_for('dashboard'))
@@ -214,3 +223,50 @@ def get_transaction_history():
 def display_transactions():
     data = Transaction.query.all()
     return data
+
+@app.route('/server/clear_transaction_table')
+def clear_transaction_table():
+    db.session.query(Transaction).delete()
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+    
+    
+@app.route('/dashboard/show_transaction_based_on_category') 
+def show_transaction_based_on_category():
+    category_sums = (
+    db.session.query(
+        Transaction.category,
+        func.sum(Transaction.amount).label('total_spending')
+    )
+    .group_by(Transaction.category)
+    .all()
+    )
+    categories = []
+    spendings = []
+    for category, total_spending in category_sums:
+        if int(total_spending) > 0:
+            categories.append(str(category))
+            spendings.append(int(total_spending))
+        # print(f"Category: {category}, Total Spending: {total_spending}")
+    print ([categories, spendings])
+    return [categories, spendings]
+    
+    
+@app.route('/process_user_request', methods=['POST'])    
+def process_user_request():
+    user_query = request.form.get('user_query')
+    
+    
+    
+    
+    
+    
+@app.route('/budget/create_budget')
+def create_budget():
+    pass
+
+@app.route('/budget/prediction')
+def spending_prediction():
+    # based on transaction database, predict spending in each category this month
+    pass
+

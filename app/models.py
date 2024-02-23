@@ -18,10 +18,14 @@ class BankAccount(db.Model):
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.String(255))
     category = db.Column(db.String(255))
+    category_icon = db.Column(db.String(255))
+    merchant_name = db.Column(db.String(255))
+    logo_url = db.Column(db.String(255))
     amount = db.Column(db.Float)
     date = db.Column(db.String(10))
-    pending = db.Column(db.String(255))
+    account_official_name = db.Column(db.String(255))
     
     
 @login_manager.user_loader

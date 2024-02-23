@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <title>Dashboard</title>
 </head>
 
@@ -12,28 +13,64 @@
     <h1>Hello you are logged in.</h1>
     <a href="{{url_for('account_management')}}">Account Management</a>
     <a href="{{url_for('logout')}}">Press here to logout</a>
-    <h3> Your Total Account Balance is: <p>{{ balance }}</p>
+    <h3> Your Total Account Balance is: <p>{{ balance }}</p> </h3>
     <a href="/server/add_transaction_history"> refresh your transactions</a>
+    <a href="/server/clear_transaction_table"> clear transaction table</a>
+    <canvas id="myPieChart"></canvas>
+    <style>
+        /* Set the dimensions of the canvas using CSS */
+        #myPieChart {
+            width: 50px;
+            height: 50px;
+        }
+    </style>
+    <script>
+        // Get the canvas context
+        var received = {{ category_spendings | safe }};
+        var categories = received[0];
+        var spendings = received[1];
+        var ctx = document.getElementById('myPieChart').getContext('2d');
+
+        // Define data for the pie chart
+        var data = {
+            labels: categories,
+            datasets: [{
+                data: spendings,
+                backgroundColor: ['red', 'green', 'blue', 'yellow', 'orange']
+            }]
+        };
+
+        // Create a pie chart
+        var myPieChart = new Chart(ctx, {
+            type: 'pie',
+            data: data
+        });
+
+    </script>  
 
         <h3>Your Transactions</h3>
         <table>
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Category</th>
-                    <th>Amount</th>
                     <th>Date</th>
-                    <th>Pending</th>
+                    <th>Category</th>
+                    <th>Category Icon</th>
+                    <th>Merchant</th>
+                    <th>Merchant Icon</th>
+                    <th>Amount</th>
+                    <th>Bank Account</th>
                 </tr>
             </thead>
             <tbody>
                 {% for transaction in transactions %}
                     <tr>
-                        <td>{{ transaction.id }}</td>
-                        <td>{{ transaction.category }}</td>
-                        <td>{{ transaction.amount }}</td>
                         <td>{{ transaction.date }}</td>
-                        <td>{{ transaction.pending }}</td>
+                        <td>{{ transaction.category }}</td>
+                        <td><img src="{{transaction.category_icon}}" alt="transaction_logo"></td>
+                        <td>{{ transaction.merchant_name }}</td>
+                        <td><img src="{{transaction.logo_url}}" alt="transaction_logo"></td>
+                        <td>{{ transaction.amount }}</td>
+                        <td>{{ transaction.account_official_name }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
